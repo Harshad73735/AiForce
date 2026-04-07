@@ -1,11 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, CalendarPlus, Clock3, ImageUp, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { Alert, EmptyState, FormField, Modal } from '../components/common';
 import { formatDate, formatDateTime, fromDateInputValue, isFutureDate, toDateInputValue } from '../utils/date';
 
 export function SchedulePage() {
-  const { drafts, scheduleDraft, unscheduleDraft, draftSaving, media } = useApp();
+  const { drafts, scheduleDraft, unscheduleDraft, deleteDraft, draftSaving, media } = useApp();
+  const navigate = useNavigate();
   const scheduled = drafts.filter((draft) => draft.status === 'scheduled').sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''));
   const draftPool = useMemo(() => drafts.filter((draft) => draft.status === 'draft'), [drafts]);
   const [selectedId, setSelectedId] = useState('');
@@ -37,11 +39,36 @@ export function SchedulePage() {
   });
 
   const activeDraft = drafts.find((draft) => draft.id === selectedId);
+  const minScheduleDateTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 
   const openScheduler = (draftId: string, scheduledAt?: string | null) => {
     setSelectedId(draftId);
-    setDateValue(scheduledAt ? toDateInputValue(scheduledAt) : '');
+    setDateValue(scheduledAt && isFutureDate(scheduledAt) ? toDateInputValue(scheduledAt) : '');
     setError('');
+  };
+
+  const closeModal = () => {
+    setSelectedId('');
+    setDateValue('');
+    setError('');
+  };
+
+  const removeActiveDraft = async () => {
+    if (!activeDraft) {
+      return;
+    }
+    try {
+      await deleteDraft(activeDraft.id);
+      closeModal();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete this post.');
+    }
+  };
+
+  const openDrafts = () => {
+    navigate('/drafts');
   };
 
   const submit = async (event: FormEvent) => {
@@ -53,8 +80,7 @@ export function SchedulePage() {
     }
     try {
       await scheduleDraft(selectedId, { scheduledAt: fromDateInputValue(dateValue) });
-      setSelectedId('');
-      setDateValue('');
+      closeModal();
     } catch (scheduleError) {
       setError(scheduleError instanceof Error ? scheduleError.message : 'Unable to save schedule changes.');
     }
@@ -228,10 +254,46 @@ export function SchedulePage() {
         <Modal title={`${isReschedule ? 'Reschedule' : 'Schedule'} ${activeDraft?.title ?? 'post'}`} onClose={() => setSelectedId('')}>
           <form className="stack" onSubmit={submit}>
             {error ? <Alert kind="error" title="Schedule validation" description={error} /> : null}
-            <FormField label="Date and time"><input type="datetime-local" value={dateValue} onChange={(event) => setDateValue(event.target.value)} /></FormField>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setSelectedId('')}>Cancel</button>
+            {activeDraft ? (
+              <div className="panel" style={{ display: 'grid', gap: '0.75rem' }}>
+                <strong>{activeDraft.title}</strong>
+                <p className="muted-text" style={{ margin: 0 }}>{activeDraft.platform} • {activeDraft.objective} • {activeDraft.contentMode}</p>
+                <p style={{ margin: 0 }}>{activeDraft.caption || 'No caption added yet.'}</p>
+                {activeDraft.hashtags.length > 0 ? (
+                  <div className="chip-row">
+                    {activeDraft.hashtags.map((tag) => (
+                      <span key={tag} className="chip">{tag}</span>
+                    ))}
+                  </div>
+                ) : null}
+                {activeDraft.mediaIds.length > 0 ? (
+                  <div className="chip-row">
+                    {activeDraft.mediaIds.map((mediaId) => {
+                      const asset = media.find((entry) => entry.id === mediaId);
+                      return asset ? (
+                        <img
+                          key={asset.id}
+                          src={asset.url}
+                          alt={asset.name}
+                          style={{ width: '68px', height: '68px', borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(51, 65, 85, 0.9)' }}
+                        />
+                      ) : null;
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <FormField label="Date and time"><input type="datetime-local" min={minScheduleDateTime} value={dateValue} onChange={(event) => setDateValue(event.target.value)} /></FormField>
+            <div className="toolbar-actions" style={{ justifyContent: 'space-between' }}>
+              <div className="toolbar-actions">
+                <button type="button" className="btn btn-secondary" onClick={openDrafts}>Go to drafts</button>
+                <button type="button" className="btn btn-secondary" onClick={openDrafts}>Edit in drafts</button>
+                <button type="button" className="btn btn-danger" onClick={() => void removeActiveDraft()}>Delete post</button>
+              </div>
+              <div className="toolbar-actions">
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
               <button className="btn" disabled={draftSaving}>{draftSaving ? 'Saving...' : isReschedule ? 'Reschedule' : 'Schedule'}</button>
+              </div>
             </div>
           </form>
         </Modal>

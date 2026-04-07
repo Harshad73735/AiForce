@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarClock, Camera, ThumbsUp, Briefcase, ImagePlus, Sparkles, Save } from 'lucide-react';
 import { useApp } from '../app/AppContext';
-import type { AiForm } from '../app/types';
+import type { AiForm, Tone } from '../app/types';
 import { Alert, EmptyState, FormField } from '../components/common';
 import { formatDateTime } from '../utils/date';
 import { fromDateInputValue, isFutureDate } from '../utils/date';
@@ -33,6 +33,7 @@ export function AiStudioPage() {
   const [savingMedia, setSavingMedia] = useState(false);
   const [savingWorkflow, setSavingWorkflow] = useState(false);
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null);
+  const [generationTone, setGenerationTone] = useState<Tone>('Professional');
 
   const draftTargets = useMemo(() => drafts.filter((draft) => draft.status === 'draft'), [drafts]);
   const recentDrafts = useMemo(() => [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5), [drafts]);
@@ -51,11 +52,46 @@ export function AiStudioPage() {
     { value: 'both', label: 'Both' },
   ] as const;
 
+  const toneOptions: Tone[] = ['Professional', 'Friendly', 'Bold', 'Luxury', 'Playful'];
+
+  const loadMockData = () => {
+    const firstProductId = products[0]?.id ?? '';
+    const firstMediaId = media[0]?.id ?? '';
+    const oneDayLater = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const localDateValue = new Date(oneDayLater.getTime() - oneDayLater.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+
+    setForm((current) => ({
+      ...current,
+      objective: 'promotion',
+      platform: 'instagram',
+      outputMode: 'both',
+      productId: firstProductId,
+      selectedMediaId: firstMediaId,
+      customInstruction: 'Create a premium campaign caption with a clear CTA and energetic tone.',
+    }));
+    setGenerationTone('Bold');
+    setDraftTitle('instagram promotion mock concept');
+    setScheduleDate(localDateValue);
+    setError('');
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
     try {
-      const output = await generateContent(form);
+      const instructionWithTone = [
+        `Tone: ${generationTone}`,
+        form.customInstruction,
+      ]
+        .filter((value) => value.trim().length > 0)
+        .join(' | ');
+
+      const output = await generateContent({
+        ...form,
+        customInstruction: instructionWithTone,
+      });
       setResult(output);
       if (!draftTitle.trim()) {
         setDraftTitle(`${form.platform} ${form.objective} concept`);
@@ -140,6 +176,15 @@ export function AiStudioPage() {
               ))}
             </select>
           </FormField>
+          <FormField label="Tone">
+            <select value={generationTone} onChange={(event) => setGenerationTone(event.target.value as Tone)}>
+              {toneOptions.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </FormField>
           <FormField label="Platform">
             <div className="segmented-control">
               {platformOptions.map((option) => {
@@ -186,16 +231,30 @@ export function AiStudioPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="Select media from library" help="Choose a stored asset to inform the generated result.">
-            <select value={form.selectedMediaId} onChange={(event) => setForm((current) => ({ ...current, selectedMediaId: event.target.value }))}>
-              <option value="">None</option>
-              {media.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField label="Select media from library" help="Pick a visual thumbnail instead of a file name.">
+              <div className="media-picker-grid">
+                <button
+                  type="button"
+                  className={`media-picker-card ${form.selectedMediaId === '' ? 'active' : ''}`}
+                  onClick={() => setForm((current) => ({ ...current, selectedMediaId: '' }))}
+                >
+                  <span className="media-picker-empty">No media</span>
+                </button>
+                {media.map((asset) => (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    className={`media-picker-card ${form.selectedMediaId === asset.id ? 'active' : ''}`}
+                    onClick={() => setForm((current) => ({ ...current, selectedMediaId: asset.id }))}
+                  >
+                    <img className="media-picker-image" src={asset.url} alt={asset.name} />
+                    <span className="media-picker-label">Select</span>
+                  </button>
+                ))}
+              </div>
+            </FormField>
+          </div>
           {selectedMedia ? (
             <div className="panel" style={{ gridColumn: '1 / -1', display: 'grid', gap: '0.75rem' }}>
               <div className="subtitle-row">
@@ -210,10 +269,15 @@ export function AiStudioPage() {
           </FormField>
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <div className="muted-text">AI logs are saved to localStorage as demo history.</div>
-            <button className="btn" disabled={aiGenerating}>
-              <Sparkles size={16} />
-              {aiGenerating ? 'Generating...' : 'Generate'}
-            </button>
+            <div className="toolbar-actions">
+              <button type="button" className="btn btn-secondary" onClick={loadMockData} disabled={aiGenerating || savingWorkflow}>
+                Load mock data
+              </button>
+              <button className="btn" disabled={aiGenerating}>
+                <Sparkles size={16} />
+                {aiGenerating ? 'Generating...' : 'Generate'}
+              </button>
+            </div>
           </div>
         </form>
       </section>

@@ -5,7 +5,13 @@ import { EmptyState, StatCard } from '../components/common';
 
 export function DashboardPage() {
   const { products, drafts, aiLogs } = useApp();
-  const scheduled = drafts.filter((draft) => draft.status === 'scheduled').sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''));
+  const now = Date.now();
+  const published = drafts
+    .filter((draft) => draft.status === 'scheduled' && draft.scheduledAt && new Date(draft.scheduledAt).getTime() <= now)
+    .sort((a, b) => (b.scheduledAt ?? '').localeCompare(a.scheduledAt ?? ''));
+  const scheduled = drafts
+    .filter((draft) => draft.status === 'scheduled' && draft.scheduledAt && new Date(draft.scheduledAt).getTime() > now)
+    .sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''));
   const recentDrafts = [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 3);
   const today = new Date().toDateString();
   const aiToday = aiLogs.filter((log) => new Date(log.createdAt).toDateString() === today).length;
@@ -16,6 +22,7 @@ export function DashboardPage() {
         <StatCard label="Total products" value={products.length} hint="Catalog items currently available" />
         <StatCard label="Total drafts" value={drafts.length} hint="All content drafts in the workspace" />
         <StatCard label="Scheduled posts" value={scheduled.length} hint="Ready for publish timing" />
+        <StatCard label="Published posts" value={published.length} hint="Already published based on schedule time" />
         <StatCard label="AI generations today" value={aiToday} hint="Deterministic mock AI activity" />
       </section>
 
@@ -82,15 +89,23 @@ export function DashboardPage() {
         <article className="panel">
           <div className="panel-header">
             <div>
-              <h2>Workspace status</h2>
-              <p>Current demo state overview.</p>
+              <h2>Published posts</h2>
+              <p>What has already gone live.</p>
             </div>
           </div>
-          <div className="stack">
-            <div className="panel">Products are persisted locally and update automatically when edited.</div>
-            <div className="panel">Draft and AI actions write to localStorage with migration-safe loaders.</div>
-            <div className="panel">The design system stays dark, compact, and responsive across desktop and mobile.</div>
-          </div>
+          {published.length === 0 ? (
+            <EmptyState title="No published posts" description="Posts appear here after their scheduled time has passed." />
+          ) : (
+            <div className="stack">
+              {published.slice(0, 6).map((post) => (
+                <div className="panel" key={post.id}>
+                  <strong>{post.title}</strong>
+                  <p className="muted-text">{post.platform} • {post.objective}</p>
+                  <small className="pill success">Published {formatDateTime(post.scheduledAt)}</small>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
       </section>
     </div>

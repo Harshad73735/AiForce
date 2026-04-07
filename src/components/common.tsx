@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react';
 
 export function Loader({ label = 'Loading...' }: { label?: string }) {
@@ -68,11 +68,19 @@ export function Alert({
   kind,
   title,
   description,
+  dismissible = true,
 }: {
   kind: 'success' | 'info' | 'warning' | 'error';
   title: string;
   description?: string;
+  dismissible?: boolean;
 }) {
+  const [visible, setVisible] = useState(true);
+
+  if (!visible) {
+    return null;
+  }
+
   const iconByKind = {
     success: CheckCircle2,
     info: Info,
@@ -88,6 +96,11 @@ export function Alert({
         <strong>{title}</strong>
         {description ? <p>{description}</p> : null}
       </div>
+      {dismissible ? (
+        <button type="button" className="alert-dismiss" onClick={() => setVisible(false)} aria-label="Remove alert">
+          ×
+        </button>
+      ) : null}
     </div>
   );
 }
