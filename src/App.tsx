@@ -9,6 +9,7 @@ import { DraftsPage } from './pages/DraftsPage';
 import { MediaLibraryPage } from './pages/MediaLibraryPage';
 import { SchedulePage } from './pages/SchedulePage';
 import { AiStudioPage } from './pages/AiStudioPage';
+import { OverviewPage } from './pages/OverviewPage';
 import { AppShell } from './components/AppShell';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -42,6 +43,7 @@ function AppRoutes() {
                 <Route path="/media-library" element={<MediaLibraryPage />} />
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/ai-studio" element={<AiStudioPage />} />
+                <Route path="/overview" element={<OverviewPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </AppShell>

@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { ToastHost } from './Toast';
-import { CalendarDays, CircleUserRound, Images, LayoutDashboard, LibraryBig, LogOut, Palette, Sparkles } from 'lucide-react';
+import { BarChart3, CalendarDays, CircleUserRound, Images, LayoutDashboard, LibraryBig, LogOut, Palette, Sparkles } from 'lucide-react';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const links = [
   { to: '/media-library', label: 'Media', icon: Images },
   { to: '/schedule', label: 'Schedule', icon: CalendarDays },
   { to: '/ai-studio', label: 'AI Studio', icon: Palette },
+  { to: '/overview', label: 'Overview', icon: BarChart3 },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
