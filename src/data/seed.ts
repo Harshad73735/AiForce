@@ -125,6 +125,36 @@ const drafts: DraftPost[] = [
     createdAt: days(-2),
     updatedAt: days(-2),
   },
+  {
+    id: 'draft_6',
+    title: 'Weekly style poll',
+    objective: 'engagement',
+    platform: 'facebook',
+    contentMode: 'caption',
+    caption: 'Which look should we break down in tomorrow\'s post?',
+    hashtags: ['#stylepoll', '#communitypick'],
+    productId: null,
+    mediaIds: [],
+    status: 'draft',
+    scheduledAt: null,
+    createdAt: days(-1),
+    updatedAt: days(-1),
+  },
+  {
+    id: 'draft_7',
+    title: 'New arrivals carousel',
+    objective: 'promotion',
+    platform: 'instagram',
+    contentMode: 'both',
+    caption: 'Swipe through this week\'s latest studio arrivals.',
+    hashtags: ['#newarrivals', '#northstarstudio', '#capsuleedit'],
+    productId: 'prod_2',
+    mediaIds: ['media_5'],
+    status: 'scheduled',
+    scheduledAt: days(3),
+    createdAt: days(-1),
+    updatedAt: days(0),
+  },
 ];
 
 const media: MediaAsset[] = [
@@ -132,6 +162,7 @@ const media: MediaAsset[] = [
   { id: 'media_2', name: 'Studio portrait', url: svgData('SP', '#0F172A', '#1D4ED8', '#38BDF8'), type: 'image', source: 'upload', createdAt: days(-9) },
   { id: 'media_3', name: 'Lifestyle flatlay', url: svgData('LF', '#111827', '#16A34A', '#22C55E'), type: 'image', source: 'generated', createdAt: days(-7) },
   { id: 'media_4', name: 'Accessory close-up', url: svgData('AC', '#111827', '#B45309', '#F59E0B'), type: 'image', source: 'generated', createdAt: days(-3) },
+  { id: 'media_5', name: 'New arrivals banner', url: svgData('NA', '#172554', '#1D4ED8', '#38BDF8'), type: 'image', source: 'upload', createdAt: days(-1) },
 ];
 
 const accounts: ConnectedAccount[] = [

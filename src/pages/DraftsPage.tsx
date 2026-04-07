@@ -117,9 +117,9 @@ export function DraftsPage() {
             }
           />
         ) : (
-          <div className="stack">
+          <div className="drafts-grid">
             {visible.map((draft) => (
-              <article className="panel reveal" key={draft.id}>
+              <article className="panel reveal draft-card" key={draft.id}>
                 <div className="toolbar" style={{ marginBottom: '0.9rem' }}>
                   <div>
                     <strong>{draft.title}</strong>
@@ -131,6 +131,30 @@ export function DraftsPage() {
                   </div>
                   <div className="muted-text">Updated {formatDateTime(draft.updatedAt)}</div>
                 </div>
+
+                {(() => {
+                  const assets = draft.mediaIds
+                    .map((mediaId) => media.find((entry) => entry.id === mediaId))
+                    .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset));
+                  const cover = assets[0];
+
+                  return (
+                    <div className="draft-media-preview" aria-label="Draft media preview">
+                      {cover ? (
+                        <>
+                          <img className="draft-media-image" src={cover.url} alt={cover.name} />
+                          {assets.length > 1 ? <span className="pill">+{assets.length - 1} more</span> : null}
+                        </>
+                      ) : (
+                        <div className="draft-media-empty">
+                          <ImageUp size={16} />
+                          <span>No media attached</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <p>{draft.caption || 'No caption added yet.'}</p>
                 {draft.mediaIds.length > 0 ? (
                   <div className="chip-row" style={{ margin: '0.75rem 0 1rem' }}>
@@ -149,7 +173,7 @@ export function DraftsPage() {
                     })}
                   </div>
                 ) : null}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="draft-card-actions">
                   <button className="btn btn-secondary" onClick={() => openEdit(draft)}>
                     <Edit3 size={16} />
                     Edit
