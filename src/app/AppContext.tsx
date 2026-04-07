@@ -150,14 +150,76 @@ function defaultDraftForm(): DraftForm {
 
 function loadState(): AppState {
   const seed = createSeedState();
+  const loadedProfile = loadJson<Partial<BusinessProfile>>(PROFILE_KEY, seed.profile);
+  const loadedProducts = loadJson<Partial<Product>[]>(PRODUCTS_KEY, seed.products);
+  const loadedDrafts = loadJson<Partial<DraftPost>[]>(DRAFTS_KEY, seed.drafts);
+  const loadedMedia = loadJson<Partial<MediaAsset>[]>(MEDIA_KEY, seed.media);
+  const loadedAccounts = loadJson<Partial<ConnectedAccount>[]>(ACCOUNTS_KEY, seed.accounts);
+
+  const profile: BusinessProfile = {
+    ...seed.profile,
+    ...loadedProfile,
+    brandVoiceKeywords: Array.isArray(loadedProfile.brandVoiceKeywords)
+      ? loadedProfile.brandVoiceKeywords.filter((entry): entry is string => typeof entry === 'string')
+      : seed.profile.brandVoiceKeywords,
+    brandColors: {
+      ...seed.profile.brandColors,
+      ...(loadedProfile.brandColors ?? {}),
+    },
+    logoUrl: typeof loadedProfile.logoUrl === 'string' ? loadedProfile.logoUrl : seed.profile.logoUrl,
+  };
+
+  const products = (Array.isArray(loadedProducts) ? loadedProducts : seed.products).map((entry, index) => ({
+    id: typeof entry.id === 'string' ? entry.id : `prod_migrated_${index}`,
+    name: typeof entry.name === 'string' ? entry.name : 'Untitled product',
+    description: typeof entry.description === 'string' ? entry.description : '',
+    category: typeof entry.category === 'string' ? entry.category : 'General',
+    price: typeof entry.price === 'number' ? entry.price : Number(entry.price ?? 0),
+    createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString(),
+  }));
+
+  const drafts = (Array.isArray(loadedDrafts) ? loadedDrafts : seed.drafts).map((entry, index): DraftPost => ({
+    id: typeof entry.id === 'string' ? entry.id : `draft_migrated_${index}`,
+    title: typeof entry.title === 'string' ? entry.title : 'Untitled draft',
+    objective: entry.objective === 'promotion' || entry.objective === 'education' || entry.objective === 'engagement' ? entry.objective : 'promotion',
+    platform: entry.platform === 'instagram' || entry.platform === 'facebook' || entry.platform === 'linkedin' ? entry.platform : 'instagram',
+    contentMode: entry.contentMode === 'caption' || entry.contentMode === 'image' || entry.contentMode === 'both' ? entry.contentMode : 'caption',
+    caption: typeof entry.caption === 'string' ? entry.caption : '',
+    hashtags: Array.isArray(entry.hashtags) ? entry.hashtags.filter((tag): tag is string => typeof tag === 'string') : [],
+    productId: typeof entry.productId === 'string' ? entry.productId : null,
+    mediaIds: Array.isArray(entry.mediaIds) ? entry.mediaIds.filter((id): id is string => typeof id === 'string') : [],
+    status: entry.status === 'scheduled' ? 'scheduled' : 'draft',
+    scheduledAt: typeof entry.scheduledAt === 'string' ? entry.scheduledAt : null,
+    createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString(),
+    updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+  }));
+
+  const media = (Array.isArray(loadedMedia) ? loadedMedia : seed.media).map((entry, index): MediaAsset => ({
+    id: typeof entry.id === 'string' ? entry.id : `media_migrated_${index}`,
+    name: typeof entry.name === 'string' ? entry.name : `Media ${index + 1}`,
+    url: typeof entry.url === 'string' ? entry.url : '',
+    type: 'image' as const,
+    source: entry.source === 'generated' ? 'generated' : 'upload',
+    createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString(),
+  })).filter((asset) => asset.url.trim().length > 0);
+
+  const accounts = (Array.isArray(loadedAccounts) ? loadedAccounts : seed.accounts).map((entry) => ({
+    platform: entry.platform === 'instagram' || entry.platform === 'facebook' || entry.platform === 'linkedin' ? entry.platform : 'instagram',
+    label: typeof entry.label === 'string' ? entry.label : 'Account',
+    handle: typeof entry.handle === 'string' ? entry.handle : '',
+    connected: Boolean(entry.connected),
+    accountColor: typeof entry.accountColor === 'string' ? entry.accountColor : '#334155',
+    icon: typeof entry.icon === 'string' ? entry.icon : 'link',
+  }));
+
   return {
     session: loadJson<Session | null>(SESSION_KEY, null),
-    profile: loadJson<BusinessProfile>(PROFILE_KEY, seed.profile),
-    products: loadJson<Product[]>(PRODUCTS_KEY, seed.products),
-    drafts: loadJson<DraftPost[]>(DRAFTS_KEY, seed.drafts),
+    profile,
+    products,
+    drafts,
     aiLogs: loadJson<AiGenerationLog[]>(AI_LOGS_KEY, seed.aiLogs),
-    media: loadJson<MediaAsset[]>(MEDIA_KEY, seed.media),
-    accounts: loadJson<ConnectedAccount[]>(ACCOUNTS_KEY, seed.accounts),
+    media,
+    accounts,
   };
 }
 
