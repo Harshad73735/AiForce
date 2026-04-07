@@ -41,6 +41,7 @@ export function SchedulePage() {
   const openScheduler = (draftId: string, scheduledAt?: string | null) => {
     setSelectedId(draftId);
     setDateValue(scheduledAt ? toDateInputValue(scheduledAt) : '');
+    setError('');
   };
 
   const submit = async (event: FormEvent) => {
@@ -50,10 +51,16 @@ export function SchedulePage() {
       setError('Pick a future date and time.');
       return;
     }
-    await scheduleDraft(selectedId, { scheduledAt: fromDateInputValue(dateValue) });
-    setSelectedId('');
-    setDateValue('');
+    try {
+      await scheduleDraft(selectedId, { scheduledAt: fromDateInputValue(dateValue) });
+      setSelectedId('');
+      setDateValue('');
+    } catch (scheduleError) {
+      setError(scheduleError instanceof Error ? scheduleError.message : 'Unable to save schedule changes.');
+    }
   };
+
+  const isReschedule = activeDraft?.status === 'scheduled';
 
   return (
     <section className="calendar-layout">
@@ -218,13 +225,13 @@ export function SchedulePage() {
       {scheduled.length === 0 ? <Alert kind="info" title="Calendar ready" description="As soon as you schedule a draft, it will appear in the month grid above." /> : null}
 
       {selectedId ? (
-        <Modal title={`Reschedule ${activeDraft?.title ?? 'post'}`} onClose={() => setSelectedId('')}>
+        <Modal title={`${isReschedule ? 'Reschedule' : 'Schedule'} ${activeDraft?.title ?? 'post'}`} onClose={() => setSelectedId('')}>
           <form className="stack" onSubmit={submit}>
             {error ? <Alert kind="error" title="Schedule validation" description={error} /> : null}
             <FormField label="Date and time"><input type="datetime-local" value={dateValue} onChange={(event) => setDateValue(event.target.value)} /></FormField>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setSelectedId('')}>Cancel</button>
-              <button className="btn" disabled={draftSaving}>{draftSaving ? 'Saving...' : 'Reschedule'}</button>
+              <button className="btn" disabled={draftSaving}>{draftSaving ? 'Saving...' : isReschedule ? 'Reschedule' : 'Schedule'}</button>
             </div>
           </form>
         </Modal>

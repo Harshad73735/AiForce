@@ -3,6 +3,7 @@ import { CalendarClock, Camera, ThumbsUp, Briefcase, ImagePlus, Sparkles, Save }
 import { useApp } from '../app/AppContext';
 import type { AiForm } from '../app/types';
 import { Alert, EmptyState, FormField } from '../components/common';
+import { formatDateTime } from '../utils/date';
 import { fromDateInputValue, isFutureDate } from '../utils/date';
 
 const blank: AiForm = {
@@ -26,11 +27,16 @@ export function AiStudioPage() {
     palette: string[];
   } | null>(null);
   const [draftTarget, setDraftTarget] = useState('');
+  const [draftTitle, setDraftTitle] = useState('');
   const [scheduleDate, setScheduleDate] = useState('');
   const [error, setError] = useState('');
   const [savingMedia, setSavingMedia] = useState(false);
+  const [savingWorkflow, setSavingWorkflow] = useState(false);
+  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null);
 
   const draftTargets = useMemo(() => drafts.filter((draft) => draft.status === 'draft'), [drafts]);
+  const recentDrafts = useMemo(() => [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5), [drafts]);
+  const recentScheduled = useMemo(() => drafts.filter((draft) => draft.status === 'scheduled').sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')).slice(0, 5), [drafts]);
   const selectedMedia = media.find((asset) => asset.id === form.selectedMediaId) ?? null;
 
   const platformOptions = [
@@ -51,6 +57,9 @@ export function AiStudioPage() {
     try {
       const output = await generateContent(form);
       setResult(output);
+      if (!draftTitle.trim()) {
+        setDraftTitle(`${form.platform} ${form.objective} concept`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed.');
     }
@@ -66,7 +75,7 @@ export function AiStudioPage() {
       return;
     }
 
-    setSavingMedia(true);
+    setSavingWorkflow(true);
     try {
       const mediaIds = selectedMedia ? [selectedMedia.id] : [];
       if (result.imagePreviewUrl && form.outputMode !== 'caption') {
@@ -75,7 +84,7 @@ export function AiStudioPage() {
       }
 
       const draft = await createDraft({
-        title: `${form.platform} ${form.objective} concept`,
+        title: draftTitle.trim() || `${form.platform} ${form.objective} concept`,
         objective: form.objective,
         platform: form.platform,
         contentMode: form.outputMode,
@@ -84,6 +93,7 @@ export function AiStudioPage() {
         hashtags: result.hashtags.join(', '),
         mediaIds,
       });
+      setLastCreatedDraftId(draft.id);
 
       if (shouldSchedule) {
         await scheduleDraft(draft.id, { scheduledAt: fromDateInputValue(scheduleDate) });
@@ -91,7 +101,7 @@ export function AiStudioPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create draft from result.');
     } finally {
-      setSavingMedia(false);
+      setSavingWorkflow(false);
     }
   };
 
@@ -260,10 +270,22 @@ export function AiStudioPage() {
                 </select>
               </FormField>
               <div className="toolbar-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => applyCaptionToDraft(draftTarget, result.mainCaption, result.hashtags)} disabled={!draftTarget || form.outputMode === 'image'}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={async () => {
+                    try {
+                      setError('');
+                      await applyCaptionToDraft(draftTarget, result.mainCaption, result.hashtags);
+                    } catch (applyError) {
+                      setError(applyError instanceof Error ? applyError.message : 'Unable to apply caption to draft.');
+                    }
+                  }}
+                  disabled={!draftTarget || form.outputMode === 'image' || savingWorkflow}
+                >
                   Apply main caption
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={() => void saveGeneratedPreview()} disabled={savingMedia || form.outputMode === 'caption'}>
+                <button type="button" className="btn btn-secondary" onClick={() => void saveGeneratedPreview()} disabled={savingMedia || form.outputMode === 'caption' || savingWorkflow}>
                   <Save size={16} />
                   Save image
                 </button>
@@ -273,18 +295,24 @@ export function AiStudioPage() {
                   <CalendarClock size={18} />
                   <strong>Create or schedule from this result</strong>
                 </div>
+                <FormField label="Draft title">
+                  <input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="instagram promotion concept" />
+                </FormField>
                 <FormField label="Schedule time">
                   <input type="datetime-local" value={scheduleDate} onChange={(event) => setScheduleDate(event.target.value)} />
                 </FormField>
                 <div className="toolbar-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => void createDraftFromResult(false)} disabled={savingMedia}>
+                  <button type="button" className="btn btn-secondary" onClick={() => void createDraftFromResult(false)} disabled={savingMedia || savingWorkflow}>
                     Create draft
                   </button>
-                  <button type="button" className="btn" onClick={() => void createDraftFromResult(true)} disabled={savingMedia}>
+                  <button type="button" className="btn" onClick={() => void createDraftFromResult(true)} disabled={savingMedia || savingWorkflow}>
                     <CalendarClock size={16} />
                     Create & schedule
                   </button>
                 </div>
+                {lastCreatedDraftId ? (
+                  <div className="pill success">Last created draft id: {lastCreatedDraftId}</div>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -306,6 +334,28 @@ export function AiStudioPage() {
                 <p className="muted-text">{log.outputPreview}</p>
               </div>
             ))}
+            <div className="preview-card">
+              <strong>Recent drafts data sync</strong>
+              <div className="stack" style={{ gap: '0.6rem', marginTop: '0.75rem' }}>
+                {recentDrafts.length === 0 ? <p className="muted-text">No drafts available yet.</p> : recentDrafts.map((draft) => (
+                  <div key={draft.id} className="ai-sync-row">
+                    <span>{draft.title}</span>
+                    <span className={`pill ${draft.status === 'scheduled' ? 'success' : 'warning'}`}>{draft.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="preview-card">
+              <strong>Upcoming scheduled from data</strong>
+              <div className="stack" style={{ gap: '0.6rem', marginTop: '0.75rem' }}>
+                {recentScheduled.length === 0 ? <p className="muted-text">No scheduled posts yet.</p> : recentScheduled.map((draft) => (
+                  <div key={draft.id} className="ai-sync-row">
+                    <span>{draft.title}</span>
+                    <small className="muted-text">{formatDateTime(draft.scheduledAt)}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </article>
       </section>

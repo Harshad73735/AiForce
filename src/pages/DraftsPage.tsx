@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { CopyPlus, Edit3, ImageUp, Sparkles, Trash2 } from 'lucide-react';
+import { CalendarPlus, Clock3, CopyPlus, Edit3, ImageUp, Sparkles, Trash2 } from 'lucide-react';
 import { useApp } from '../app/AppContext';
 import type { DraftForm, DraftPost } from '../app/types';
 import { Alert, ConfirmDialog, EmptyState, FormField, Modal } from '../components/common';
-import { formatDateTime } from '../utils/date';
+import { formatDateTime, fromDateInputValue, isFutureDate, toDateInputValue } from '../utils/date';
 
 const blank: DraftForm = {
   title: '',
@@ -25,6 +25,8 @@ export function DraftsPage() {
     updateDraft,
     deleteDraft,
     duplicateDraft,
+    scheduleDraft,
+    unscheduleDraft,
     draftSaving,
     draftEditor,
     openDraftEditor,
@@ -35,8 +37,12 @@ export function DraftsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [scheduleDateValue, setScheduleDateValue] = useState('');
+  const [scheduleError, setScheduleError] = useState('');
 
   const visible = useMemo(() => [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [drafts]);
+  const activeScheduleDraft = useMemo(() => drafts.find((draft) => draft.id === scheduleId) ?? null, [drafts, scheduleId]);
 
   useEffect(() => {
     if (!autosaveEnabled || !draftEditor.draftId) {
@@ -59,6 +65,40 @@ export function DraftsPage() {
     openDraftEditor(draft);
     setModalOpen(true);
     setAutosaveEnabled(true);
+  };
+
+  const closeScheduleModal = () => {
+    setScheduleId(null);
+    setScheduleDateValue('');
+    setScheduleError('');
+  };
+
+  const openScheduleModal = (draft: DraftPost) => {
+    setScheduleId(draft.id);
+    setScheduleDateValue(draft.scheduledAt ? toDateInputValue(draft.scheduledAt) : '');
+    setScheduleError('');
+  };
+
+  const submitSchedule = async (event: FormEvent) => {
+    event.preventDefault();
+    setScheduleError('');
+    if (!scheduleId || !scheduleDateValue) {
+      setScheduleError('Pick a future date and time.');
+      return;
+    }
+
+    const isoDate = fromDateInputValue(scheduleDateValue);
+    if (!isFutureDate(isoDate)) {
+      setScheduleError('Pick a future date and time.');
+      return;
+    }
+
+    try {
+      await scheduleDraft(scheduleId, { scheduledAt: isoDate });
+      closeScheduleModal();
+    } catch (scheduleDraftError) {
+      setScheduleError(scheduleDraftError instanceof Error ? scheduleDraftError.message : 'Unable to schedule this draft.');
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -156,6 +196,12 @@ export function DraftsPage() {
                 })()}
 
                 <p>{draft.caption || 'No caption added yet.'}</p>
+                {draft.status === 'scheduled' ? (
+                  <div className="subtitle-row muted-text">
+                    <Clock3 size={15} />
+                    <span>Scheduled for {formatDateTime(draft.scheduledAt)}</span>
+                  </div>
+                ) : null}
                 {draft.mediaIds.length > 0 ? (
                   <div className="chip-row" style={{ margin: '0.75rem 0 1rem' }}>
                     {draft.mediaIds.map((mediaId) => {
@@ -182,6 +228,22 @@ export function DraftsPage() {
                     <CopyPlus size={16} />
                     Duplicate
                   </button>
+                  {draft.status === 'draft' ? (
+                    <button className="btn btn-secondary" onClick={() => openScheduleModal(draft)}>
+                      <CalendarPlus size={16} />
+                      Schedule
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn btn-secondary" onClick={() => openScheduleModal(draft)}>
+                        <CalendarPlus size={16} />
+                        Reschedule
+                      </button>
+                      <button className="btn btn-secondary" onClick={() => unscheduleDraft(draft.id)}>
+                        Unschedule
+                      </button>
+                    </>
+                  )}
                   <button className="btn btn-danger" onClick={() => setDeleteId(draft.id)}>
                     <Trash2 size={16} />
                     Delete
@@ -299,6 +361,24 @@ export function DraftsPage() {
               <button className="btn" disabled={draftSaving}>
                 {draftSaving ? 'Saving...' : 'Save draft'}
               </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {scheduleId ? (
+        <Modal
+          title={`${activeScheduleDraft?.status === 'scheduled' ? 'Reschedule' : 'Schedule'} ${activeScheduleDraft?.title ?? 'draft'}`}
+          onClose={closeScheduleModal}
+        >
+          <form className="stack" onSubmit={submitSchedule}>
+            {scheduleError ? <Alert kind="error" title="Schedule validation" description={scheduleError} /> : null}
+            <FormField label="Date and time">
+              <input type="datetime-local" value={scheduleDateValue} onChange={(event) => setScheduleDateValue(event.target.value)} />
+            </FormField>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={closeScheduleModal}>Cancel</button>
+              <button className="btn" disabled={draftSaving}>{draftSaving ? 'Saving...' : activeScheduleDraft?.status === 'scheduled' ? 'Reschedule' : 'Schedule'}</button>
             </div>
           </form>
         </Modal>
